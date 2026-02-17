@@ -1,0 +1,61 @@
+version: "3.8"
+services:
+  # ---------- Notre application Node.js ----------
+  order-service:
+    build: .
+    container_name: order-service
+    ports:
+      - "5001:5000" # API Express
+      - "9464:9464" # Metriques Prometheus (via OTel PrometheusExporter)
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+
+  # ---------- OpenTelemetry Collector ----------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.96.0
+    container_name: otel-collector
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    volumes:
+      - ./otel-collector/otel-collector-config.yml:/etc/otelcol-contrib/config.yml
+    restart: unless-stopped
+
+  # ---------- Jaeger (stockage et visualisation des traces) ----------
+  # C'est ici que vous verrez les traces de votre application.
+  # Ouvrez http: /localhost:16686, selectionnez "order-service",
+  # et explorez le parcours complet de chaque requete.
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: jaeger
+    ports:
+      - "16686:16686" # Interface web Jaeger
+      #- "4317:4317" # OTLP gRPC (interne, utilise par le Collector)
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    restart: unless-stopped
+
+  # ---------- Prometheus ----------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+
+  # ---------- Grafana ----------
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+      - jaeger
+    restart: unless-stopped

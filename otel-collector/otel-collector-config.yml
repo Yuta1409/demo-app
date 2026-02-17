@@ -1,0 +1,42 @@
+# Configuration du OpenTelemetry Collector
+# Le Collector recoit les traces des applications et les renvoie vers Jaeger.
+# C'est le "standard telephonique" qui redirige les appels.
+receivers:
+  # Recevoir des donnees au format OTLP (OpenTelemetry Protocol)
+  # C'est le protocole natif d'OpenTelemetry
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317 # Port gRPC
+      http:
+        endpoint: 0.0.0.0:4318 # Port HTTP
+
+processors:
+  # Le batch processor accumule les donnees et les envoie par lots.
+  # Reduit le nombre d'appels reseau et ameliore les performances.
+  # C'est comme attendre d'avoir un lot de colis avant d'envoyer le camion,
+  # au lieu d'envoyer un camion par colis.
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+exporters:
+  # Exporter les traces vers Jaeger
+  # Jaeger recoit les traces au format OTLP nativement sur le port 4317.
+  # Les traces seront ensuite consultables dans l'interface web Jaeger
+  # sur http: /localhost:16686
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  # Logs de debug (affiche les donnees dans la console du Collector)
+  # Utile pour verifier que les donnees arrivent bien
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger, debug]
